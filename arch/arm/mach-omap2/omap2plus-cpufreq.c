@@ -42,6 +42,10 @@
 
 #include "dvfs.h"
 
+#ifdef CONFIG_CUSTOM_VOLTAGE
+#include <linux/custom_voltage.h>
+#endif
+
 #ifdef CONFIG_SMP
 struct lpj_info {
 	unsigned long	ref;
@@ -66,12 +70,6 @@ static unsigned int current_target_freq;
 static unsigned int screen_off_max_freq;
 static bool omap_cpufreq_ready;
 static bool omap_cpufreq_suspended;
-
-#ifdef CONFIG_CUSTOM_VOLTAGE
-extern void customvoltage_register_freqtable(struct cpufreq_frequency_table * freq_table);
-extern void customvoltage_register_freqmutex(struct mutex * freq_mutex);
-extern void customvoltage_init(void);
-#endif
 
 static unsigned int omap_getspeed(unsigned int cpu)
 {
@@ -369,9 +367,7 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 	policy->cpuinfo.transition_latency = 30 * 1000;
 
 #ifdef CONFIG_CUSTOM_VOLTAGE
-	customvoltage_register_freqtable(freq_table);
 	customvoltage_register_freqmutex(&omap_cpufreq_lock);
-	customvoltage_init();
 #endif
 
 	return 0;
@@ -434,17 +430,14 @@ struct freq_attr omap_cpufreq_attr_screen_off_freq = {
 };
 
 #ifdef CONFIG_CUSTOM_VOLTAGE
-extern ssize_t customvoltage_voltages_read(struct device * dev, struct device_attribute * attr, char * buf);
-extern ssize_t customvoltage_voltages_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size);
-
 static ssize_t show_UV_mV_table(struct cpufreq_policy * policy, char * buf)
 {
-    return customvoltage_voltages_read(NULL, NULL, buf);
+    return customvoltage_mpuvolt_read(NULL, NULL, buf);
 }
 
 static ssize_t store_UV_mV_table(struct cpufreq_policy * policy, const char * buf, size_t count)
 {
-    return customvoltage_voltages_write(NULL, NULL, buf, count);
+    return customvoltage_mpuvolt_write(NULL, NULL, buf, count);
 }
 
 static struct freq_attr omap_UV_mV_table = {

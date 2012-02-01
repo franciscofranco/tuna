@@ -10,7 +10,6 @@
 #include <linux/init.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
-#include <linux/cpufreq.h>
 #include <linux/opp.h>
 #include <linux/slab.h>
 
@@ -19,11 +18,10 @@
 
 #define CUSTOMVOLTAGE_VERSION 1
 
-static int num_freqs;
+static int num_mpufreqs;
 
-static unsigned long * voltages = NULL;
-
-static struct cpufreq_frequency_table * frequency_table = NULL;
+static unsigned long ** mpu_voltages = NULL;
+static unsigned long ** mpu_freqs = NULL;
 
 static struct mutex * frequency_mutex = NULL;
 
@@ -41,13 +39,14 @@ struct opp {
     struct device_opp *dev_opp;
 };
 
-void customvoltage_register_freqtable(struct cpufreq_frequency_table * freq_table)
-{
-    frequency_table = freq_table;
+struct device_opp {
+    struct list_head node;
 
-    return;
-}
-EXPORT_SYMBOL(customvoltage_register_freqtable);
+    struct device * dev;
+    struct list_head opp_list;
+};
+
+extern struct device_opp * find_device_opp(struct device * dev);
 
 void customvoltage_register_freqmutex(struct mutex * freq_mutex)
 {
@@ -73,76 +72,63 @@ void customvoltage_init(void)
 {
     int i;
 
+    struct device_opp * dev_opp;
+
     struct opp * temp_opp;
 
     mpu_voltdm = voltdm_lookup("mpu");
 
-    num_freqs = 0;
+    dev_opp = find_device_opp(mpu_device);
 
-    while (frequency_table[num_freqs].frequency != CPUFREQ_TABLE_END)
-	num_freqs++;
+    num_mpufreqs = 0;
 
-    voltages = kzalloc(num_freqs * sizeof(unsigned long), GFP_KERNEL);
-
-    for (i = 0; i < num_freqs; i++)
+    list_for_each_entry(temp_opp, &dev_opp->opp_list, node)
 	{
-	    temp_opp = opp_find_freq_exact(mpu_device, frequency_table[i].frequency * 1000, true);
-	    voltages[i] = temp_opp->u_volt;
+	    if (temp_opp->available)
+		num_mpufreqs++;
+	}
+
+    mpu_voltages = kzalloc(num_mpufreqs * sizeof(unsigned long *), GFP_KERNEL);
+    mpu_freqs = kzalloc(num_mpufreqs * sizeof(unsigned long *), GFP_KERNEL);
+
+    i = 0;
+
+    list_for_each_entry(temp_opp, &dev_opp->opp_list, node)
+	{
+	    if (temp_opp->available)
+		{
+		    mpu_voltages[i] = &(temp_opp->u_volt);
+		    mpu_freqs[i] = &(temp_opp->rate);
+
+		    i++;
+		}
 	}
 
     return;
 }
 EXPORT_SYMBOL(customvoltage_init);
 
-static void customvoltage_voltages_update(void)
-{
-    int i;
-
-    struct opp * temp_opp;
-
-    mutex_lock(frequency_mutex);
-
-    for (i = 0; i < num_freqs; i++)
-	{
-	    temp_opp = opp_find_freq_exact(mpu_device, frequency_table[i].frequency * 1000, true);
-	    temp_opp->u_volt = voltages[i];
-	}
-
-    omap_sr_disable_reset_volt(mpu_voltdm);
-
-    for (i = 0; i < num_freqs; i++)
-	{
-	    mpu_voltdm->vdd->volt_data[i].volt_nominal = voltages[i];
-	    mpu_voltdm->vdd->volt_data[i].volt_calibrated = 0;
-	    mpu_voltdm->vdd->dep_vdd_info->dep_table[i].main_vdd_volt = voltages[i];
-	}
-
-    omap_sr_enable(mpu_voltdm, omap_voltage_get_curr_vdata(mpu_voltdm));
-
-    mutex_unlock(frequency_mutex);
-
-    return;
-}
-
-ssize_t customvoltage_voltages_read(struct device * dev, struct device_attribute * attr, char * buf)
+ssize_t customvoltage_mpuvolt_read(struct device * dev, struct device_attribute * attr, char * buf)
 {
     int i, j = 0;
 
-    for (i = num_freqs - 1; i >= 0; i--)
+    for (i = num_mpufreqs - 1; i >= 0; i--)
 	{
-	    j += sprintf(&buf[j], "%umhz: %lu mV\n", frequency_table[i].frequency / 1000, voltages[i] / 1000);
+	    j += sprintf(&buf[j], "%lumhz: %lu mV\n", *mpu_freqs[i] / 1000000, *mpu_voltages[i] / 1000);
 	}
 
     return j;
 }
-EXPORT_SYMBOL(customvoltage_voltages_read);
+EXPORT_SYMBOL(customvoltage_mpuvolt_read);
 
-ssize_t customvoltage_voltages_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
+ssize_t customvoltage_mpuvolt_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
     int i = 0, j = 0, next_freq = 0;
     unsigned long voltage;
 
     char buffer[20];
+
+    mutex_lock(frequency_mutex);
 
     while (1)
 	{
@@ -157,12 +143,12 @@ ssize_t customvoltage_voltages_write(struct device * dev, struct device_attribut
 
 		    if (sscanf(buffer, "%lu", &voltage) == 1)
 			{
-			    voltages[num_freqs - 1 - next_freq] = voltage * 1000;
+			    *mpu_voltages[num_mpufreqs - 1 - next_freq] = voltage * 1000;
 		
 			    next_freq++;
 			}
 
-		    if (buf[i] == '\0' || next_freq > num_freqs)
+		    if (buf[i] == '\0' || next_freq > num_mpufreqs)
 			{
 			    break;
 			}
@@ -171,23 +157,34 @@ ssize_t customvoltage_voltages_write(struct device * dev, struct device_attribut
 		}
 	}
 
-    customvoltage_voltages_update();
+    omap_sr_disable_reset_volt(mpu_voltdm);
+
+    for (i = 0; i < num_mpufreqs; i++)
+	{
+	    mpu_voltdm->vdd->volt_data[i].volt_nominal = *mpu_voltages[i];
+	    mpu_voltdm->vdd->volt_data[i].volt_calibrated = 0;
+	    mpu_voltdm->vdd->dep_vdd_info->dep_table[i].main_vdd_volt = *mpu_voltages[i];
+	}
+
+    omap_sr_enable(mpu_voltdm, omap_voltage_get_curr_vdata(mpu_voltdm));
+
+    mutex_unlock(frequency_mutex);
 
     return size;
 }
-EXPORT_SYMBOL(customvoltage_voltages_write);
+EXPORT_SYMBOL(customvoltage_mpuvolt_write);
 
 static ssize_t customvoltage_version(struct device * dev, struct device_attribute * attr, char * buf)
 {
     return sprintf(buf, "%u\n", CUSTOMVOLTAGE_VERSION);
 }
 
-static DEVICE_ATTR(voltages, S_IRUGO | S_IWUGO, customvoltage_voltages_read, customvoltage_voltages_write);
+static DEVICE_ATTR(mpu_voltages, S_IRUGO | S_IWUGO, customvoltage_mpuvolt_read, customvoltage_mpuvolt_write);
 static DEVICE_ATTR(version, S_IRUGO , customvoltage_version, NULL);
 
 static struct attribute *customvoltage_attributes[] = 
     {
-	&dev_attr_voltages.attr,
+	&dev_attr_mpu_voltages.attr,
 	&dev_attr_version.attr,
 	NULL
     };
