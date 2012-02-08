@@ -19,6 +19,7 @@
 #define CUSTOMVOLTAGE_VERSION 2
 
 static struct mutex * frequency_mutex = NULL;
+static struct mutex * dvfs_mutex = NULL;
 
 static int num_mpufreqs;
 
@@ -69,13 +70,21 @@ struct device_opp {
 
 extern struct device_opp * find_device_opp(struct device * dev);
 
-void customvoltage_register_freqmutex(struct mutex * freq_mutex)
+void customvoltage_register_freqmutex(struct mutex * freqmutex)
 {
-    frequency_mutex = freq_mutex;
+    frequency_mutex = freqmutex;
 
     return;
 }
 EXPORT_SYMBOL(customvoltage_register_freqmutex);
+
+void customvoltage_register_dvfsmutex(struct mutex * dvfsmutex)
+{
+    dvfs_mutex = dvfsmutex;
+
+    return;
+}
+EXPORT_SYMBOL(customvoltage_register_dvfsmutex);
 
 void customvoltage_register_oppdevice(struct device * dev, char * dev_name)
 {
@@ -248,6 +257,7 @@ ssize_t customvoltage_mpuvolt_write(struct device * dev, struct device_attribute
     char buffer[20];
 
     mutex_lock(frequency_mutex);
+    mutex_lock(dvfs_mutex);
 
     while (1)
 	{
@@ -287,6 +297,7 @@ ssize_t customvoltage_mpuvolt_write(struct device * dev, struct device_attribute
 
     omap_sr_enable(mpu_voltdm, omap_voltage_get_curr_vdata(mpu_voltdm));
 
+    mutex_unlock(dvfs_mutex);
     mutex_unlock(frequency_mutex);
 
     return size;
@@ -313,6 +324,7 @@ static ssize_t customvoltage_corevolt_write(struct device * dev, struct device_a
     char buffer[20];
 
     mutex_lock(frequency_mutex);
+    mutex_lock(dvfs_mutex);
 
     while (1)
 	{
@@ -361,6 +373,7 @@ static ssize_t customvoltage_corevolt_write(struct device * dev, struct device_a
 
     omap_sr_enable(core_voltdm, omap_voltage_get_curr_vdata(core_voltdm));
 
+    mutex_unlock(dvfs_mutex);
     mutex_unlock(frequency_mutex);
 
     return size;
@@ -386,6 +399,7 @@ static ssize_t customvoltage_ivavolt_write(struct device * dev, struct device_at
     char buffer[20];
 
     mutex_lock(frequency_mutex);
+    mutex_lock(dvfs_mutex);
 
     while (1)
 	{
@@ -425,6 +439,7 @@ static ssize_t customvoltage_ivavolt_write(struct device * dev, struct device_at
 
     omap_sr_enable(iva_voltdm, omap_voltage_get_curr_vdata(iva_voltdm));
 
+    mutex_unlock(dvfs_mutex);
     mutex_unlock(frequency_mutex);
 
     return size;
