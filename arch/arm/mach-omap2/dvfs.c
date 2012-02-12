@@ -251,7 +251,9 @@ static struct omap_vdd_dvfs_info *_dev_to_dvfs_info(struct device *dev)
  *
  * Returns NULL on failure.
  */
+#ifndef CONFIG_CUSTOM_VOLTAGE
 static
+#endif
 struct omap_vdd_dvfs_info *_voltdm_to_dvfs_info(struct voltagedomain *voltdm)
 {
 	struct omap_vdd_dvfs_info *dvfs_info;
@@ -266,6 +268,9 @@ struct omap_vdd_dvfs_info *_voltdm_to_dvfs_info(struct voltagedomain *voltdm)
 
 	return NULL;
 }
+#ifdef CONFIG_CUSTOM_VOLTAGE
+EXPORT_SYMBOL(_voltdm_to_dvfs_info);
+#endif
 
 /**
  * _volt_to_opp() - Find OPP corresponding to a given voltage
