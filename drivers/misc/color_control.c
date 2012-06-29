@@ -15,7 +15,7 @@
 
 extern void colorcontrol_update(bool multiplier_updated);
 
-static bool safety_enabled = true;
+static bool safety_enabled = false;
 
 static int * v1_offset;
 
