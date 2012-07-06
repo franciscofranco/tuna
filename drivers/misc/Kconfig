@@ -596,5 +596,11 @@ config BLX
 	default y
 	help
 		Say Y here to enable Battery Life eXtender
+		
+config SOUND_CONTROL
+	bool "Enable support for Sound Control"
+	default y
+	help
+	  Enable support for Sound Control
 
 endif # MISC_DEVICES

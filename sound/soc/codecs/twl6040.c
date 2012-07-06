@@ -51,6 +51,9 @@
 #define TWL6040_RAMP_NONE	0
 #define TWL6040_RAMP_UP		1
 #define TWL6040_RAMP_DOWN	2
+#ifdef CONFIG_SOUND_CONTROL
+#define TWL6040_RAMP_ZERO	3
+#endif
 
 #define TWL6040_HSL_VOL_MASK	0x0F
 #define TWL6040_HSL_VOL_SHIFT	0
@@ -216,6 +219,15 @@ static const u8 twl6040_reg_supply[TWL6040_CACHEREGNUM] = {
 	TWL6040_VIO_SUPPLY, /* TWL6040_STATUS (ro)	*/
 };
 
+#ifdef CONFIG_SOUND_CONTROL
+struct twl6040_data * snd_data;
+struct snd_soc_codec * snd_codec;
+
+unsigned int volume_boost = 0;
+
+static bool headset_plugged = false;
+#endif
+
 /*
  * read twl6040 register cache
  */
@@ -370,9 +382,16 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 
 	if (headset->ramp == TWL6040_RAMP_UP) {
 		/* ramp step up */
+#ifdef CONFIG_SOUND_CONTROL
+		int volume = headset->left_vol + volume_boost;
+		if (val < volume) {
+			if (val + left_step > volume)
+				val = volume;
+#else
 		if (val < headset->left_vol) {
 			if (val + left_step > headset->left_vol)
 				val = headset->left_vol;
+#endif
 			else
 				val += left_step;
 
@@ -382,6 +401,38 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 		} else {
 			left_complete = 1;
 		}
+#ifdef CONFIG_SOUND_CONTROL
+	} else if (headset->ramp == TWL6040_RAMP_DOWN) {
+		/* ramp step down*/
+		int volume = headset->left_vol + volume_boost;
+		if (val > volume) {
+		    if ((int)val - (int)left_step < volume)
+				val = volume;
+			else
+				val -= left_step;
+
+			reg &= ~TWL6040_HSL_VOL_MASK;
+			twl6040_write(codec, TWL6040_REG_HSGAIN, reg |
+						(~val & TWL6040_HSL_VOL_MASK));
+		} else {
+			left_complete = 1;
+		}
+	} else if (headset->ramp == TWL6040_RAMP_ZERO) {
+		/* ramp step down to zero*/
+		if (val > 0x0) {
+			if ((int)val - (int)left_step < 0)
+				val = 0;
+			else
+				val -= left_step;
+
+			reg &= ~TWL6040_HSL_VOL_MASK;
+			twl6040_write(codec, TWL6040_REG_HSGAIN, reg |
+						(~val & TWL6040_HSL_VOL_MASK));
+		} else {
+			left_complete = 1;
+		}
+	}
+#else
 	} else if (headset->ramp == TWL6040_RAMP_DOWN) {
 		/* ramp step down */
 		if (val > 0x0) {
@@ -397,6 +448,7 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 			left_complete = 1;
 		}
 	}
+#endif
 
 	/* right channel */
 	right_step = (right_step > 0xF) ? 0xF : right_step;
@@ -405,9 +457,16 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 
 	if (headset->ramp == TWL6040_RAMP_UP) {
 		/* ramp step up */
+#ifdef CONFIG_SOUND_CONTROL
+		int volume = headset->right_vol + volume_boost;
+		if (val < volume) {
+			if (val + right_step > volume)
+				val = volume;
+#else
 		if (val < headset->right_vol) {
 			if (val + right_step > headset->right_vol)
 				val = headset->right_vol;
+#endif
 			else
 				val += right_step;
 
@@ -417,6 +476,38 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 		} else {
 			right_complete = 1;
 		}
+#ifdef CONFIG_SOUND_CONTROL
+	} else if (headset->ramp == TWL6040_RAMP_DOWN) {
+		/* ramp step down*/
+		int volume = headset->right_vol + volume_boost;
+		if (val > volume) {
+		    if ((int)val - (int)right_step < volume)
+				val = volume;
+			else
+				val -= right_step;
+
+			reg &= ~TWL6040_HSR_VOL_MASK;
+			twl6040_write(codec, TWL6040_REG_HSGAIN,
+					 reg | (~val << TWL6040_HSR_VOL_SHIFT));
+		} else {
+			right_complete = 1;
+		}
+	} else if (headset->ramp == TWL6040_RAMP_ZERO) {
+		/* ramp step down to zero*/
+		if (val > 0x0) {
+			if ((int)val - (int)right_step < 0)
+				val = 0;
+			else
+				val -= right_step;
+
+			reg &= ~TWL6040_HSR_VOL_MASK;
+			twl6040_write(codec, TWL6040_REG_HSGAIN,
+					 reg | (~val << TWL6040_HSR_VOL_SHIFT));
+		} else {
+			right_complete = 1;
+		}
+	}
+#else
 	} else if (headset->ramp == TWL6040_RAMP_DOWN) {
 		/* ramp step down */
 		if (val > 0x0) {
@@ -432,6 +523,7 @@ static inline int twl6040_hs_ramp_step(struct snd_soc_codec *codec,
 			right_complete = 1;
 		}
 	}
+#endif
 
 	return left_complete & right_complete;
 }
@@ -609,7 +701,11 @@ static void twl6040_pga_hs_work(struct work_struct *work)
 			schedule_timeout_interruptible(msecs_to_jiffies(delay));
 	}
 
+#ifdef CONFIG_SOUND_CONTROL
+	if (headset->ramp == TWL6040_RAMP_ZERO) {
+#else
 	if (headset->ramp == TWL6040_RAMP_DOWN) {
+#endif
 		headset->active = 0;
 		complete(&headset->ramp_done);
 	} else {
@@ -747,8 +843,18 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 			break;
 
 		/* don't use volume ramp for power-up */
+#ifdef CONFIG_SOUND_CONTROL
+		if (w->shift == 2 || w->shift == 3) {
+		    out->left_step = out->left_vol + volume_boost;
+		    out->right_step = out->right_vol + volume_boost;
+		} else {
+		    out->left_step = out->left_vol;
+		    out->right_step = out->right_vol;
+		}
+#else
 		out->left_step = out->left_vol;
 		out->right_step = out->right_vol;
+#endif
 
 		if (!delayed_work_pending(work)) {
 			out->ramp = TWL6040_RAMP_UP;
@@ -763,7 +869,14 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 
 		if (!delayed_work_pending(work)) {
 			/* use volume ramp for power-down */
+#ifdef CONFIG_SOUND_CONTROL
+			if (w->shift == 2 || w->shift == 3)
+			    out->ramp = TWL6040_RAMP_ZERO;
+			else
+			    out->ramp = TWL6040_RAMP_DOWN; 
+#else
 			out->ramp = TWL6040_RAMP_DOWN;
+#endif
 			INIT_COMPLETION(out->ramp_done);
 
 			queue_delayed_work(queue, work,
@@ -801,6 +914,63 @@ static int headset_power_mode(struct snd_soc_codec *codec, int high_perf)
 	return 0;
 }
 
+#ifdef CONFIG_SOUND_CONTROL
+void soundcontrol_updatevolume(unsigned int volumeboost)
+{
+    struct twl6040_output * out = &snd_data->headset;
+    struct delayed_work * work = &snd_data->hs_delayed_work;
+
+    if (out->active && !delayed_work_pending(work)) {
+	if (volumeboost > volume_boost)
+	    out->ramp = TWL6040_RAMP_UP;
+	else
+	    out->ramp = TWL6040_RAMP_DOWN;
+
+	volume_boost = volumeboost;
+
+	out->left_step = out->left_vol + volume_boost;
+	out->right_step = out->right_vol + volume_boost;
+
+	queue_delayed_work(snd_data->hs_workqueue, work, msecs_to_jiffies(1));
+    } else {
+	volume_boost = volumeboost;
+    }
+
+    return;
+}
+EXPORT_SYMBOL(soundcontrol_updatevolume);
+
+void soundcontrol_updateperf(bool highperf_enabled)
+{
+    snd_data->headset_mode = highperf_enabled ? 1 : 0;
+
+    if (headset_plugged) {
+	headset_power_mode(snd_codec, snd_data->headset_mode);
+    }
+
+    return;
+}
+EXPORT_SYMBOL(soundcontrol_updateperf);
+
+void soundcontrol_reportjack(int jack_type)
+{
+    if (jack_type == 0) {
+	headset_plugged = false;
+
+	if (snd_codec != NULL)
+	    headset_power_mode(snd_codec, 1);
+    } else { 
+	headset_plugged = true;
+
+	if (snd_codec != NULL && snd_data != NULL)
+	    headset_power_mode(snd_codec, snd_data->headset_mode);
+    }
+
+    return;
+}
+EXPORT_SYMBOL(soundcontrol_reportjack);
+#endif
+
 static int twl6040_dac_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
 {
@@ -821,7 +991,15 @@ static int twl6040_ep_event(struct snd_soc_dapm_widget *w,
 		ret = headset_power_mode(codec, 1);
 	} else {
 		priv->power_mode_forced = 0;
+#ifdef CONFIG_SOUND_CONTROL
+		if (headset_plugged) {
+		    ret = headset_power_mode(codec, priv->headset_mode);
+		} else {
+		    ret = headset_power_mode(codec, 1);
+		}
+#else
 		ret = headset_power_mode(codec, priv->headset_mode);
+#endif
 	}
 
 	msleep(1);
@@ -918,6 +1096,13 @@ static int twl6040_put_volsw(struct snd_kcontrol *kcontrol,
 		if (!out->active)
 			return 1;
 	}
+
+#ifdef CONFIG_SOUND_CONTROL
+	if (&twl6040_priv->headset.active) {
+	    ucontrol->value.integer.value[0] += volume_boost;
+	    ucontrol->value.integer.value[1] += volume_boost;
+	}
+#endif
 
 	ret = snd_soc_put_volsw(kcontrol, ucontrol);
 	if (ret < 0)
@@ -1663,7 +1848,11 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 		priv->ep_step = 1;
 
 	/* default is low-power mode */
+#ifdef CONFIG_SOUND_CONTROL
+	priv->headset_mode = 0;
+#else
 	priv->headset_mode = 1;
+#endif
 	priv->sysclk_constraints = &lp_constraints;
 	priv->workqueue = create_singlethread_workqueue("twl6040-codec");
 
@@ -1719,6 +1908,15 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 	snd_soc_add_controls(codec, twl6040_snd_controls,
 				ARRAY_SIZE(twl6040_snd_controls));
 	twl6040_add_widgets(codec);
+
+#ifdef CONFIG_SOUND_CONTROL
+	snd_data = priv;
+	snd_codec = codec;
+
+	if (headset_plugged) {
+	    headset_power_mode(codec, priv->headset_mode);
+	}
+#endif
 
 	return 0;
 
