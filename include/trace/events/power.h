@@ -34,6 +34,30 @@ DEFINE_EVENT(cpu, cpu_idle,
 	TP_ARGS(state, cpu_id)
 );
 
+DECLARE_EVENT_CLASS(residency,
+
+	TP_PROTO(unsigned long residency),
+
+	TP_ARGS(residency),
+
+	TP_STRUCT__entry(
+		__field(	u32,		residency	)
+	),
+
+	TP_fast_assign(
+		__entry->residency = residency;
+	),
+
+	TP_printk("\t%lu", (unsigned long)__entry->residency)
+);
+
+DEFINE_EVENT(residency, cpu_residency,
+
+	TP_PROTO(unsigned long residency),
+
+	TP_ARGS(residency)
+);
+
 /* This file can get included multiple times, TRACE_HEADER_MULTI_READ at top */
 #ifndef _PWR_EVENT_AVOID_DOUBLE_DEFINING
 #define _PWR_EVENT_AVOID_DOUBLE_DEFINING

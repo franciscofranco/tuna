@@ -104,6 +104,7 @@ static void cpuidle_idle_call(void)
 
 	trace_power_end(dev->cpu);
 	trace_cpu_idle(PWR_EVENT_EXIT, dev->cpu);
+	trace_cpu_residency(dev->last_residency);
 
 	if (dev->last_state)
 		target_state = dev->last_state;
