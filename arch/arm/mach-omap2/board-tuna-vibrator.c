@@ -31,8 +31,10 @@
 #define GPIO_MOTOR_EN_REV05	54
 
 #define VIB_GPTIMER_NUM		10
-#define PWM_DUTY_MAX		1450
+#define PWM_DUTY_MAX		1463
 #define MAX_TIMEOUT		10000 /* 10s */
+static unsigned long pwmval = 127;
+static unsigned long oldpwmval;
 
 static struct vibrator {
 	struct wake_lock wklock;
@@ -42,6 +44,50 @@ static struct vibrator {
 	bool enabled;
 	unsigned gpio_en;
 } vibdata;
+
+static ssize_t pwmvalue_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int count;
+
+	count = sprintf(buf, "%lu\n", pwmval);
+	pr_info("vibrator: pwmval: %lu\n", pwmval);
+
+	return count;
+}
+
+ssize_t pwmvalue_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	if (kstrtoul(buf, 0, &pwmval))
+		pr_err("vibrator: error in storing pwm value\n");
+
+	pr_info("vibrator: pwmval: %lu\n", pwmval);
+
+	return size;
+}
+
+static DEVICE_ATTR(pwmvalue, S_IRUGO | S_IWUGO,
+		pwmvalue_show, pwmvalue_store);
+
+static int tuna_create_vibrator_sysfs(void)
+{
+	int ret;
+	struct kobject *vibrator_kobj;
+	vibrator_kobj = kobject_create_and_add("vibrator", NULL);
+	if (unlikely(!vibrator_kobj))
+		return -ENOMEM;
+
+	ret = sysfs_create_file(vibrator_kobj,
+			&dev_attr_pwmvalue.attr);
+	if (unlikely(ret < 0)) {
+		pr_err("vibrator: sysfs_create_file failed: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
 
 static void vibrator_off(void)
 {
@@ -66,6 +112,20 @@ static int vibrator_get_time(struct timed_output_dev *dev)
 static int vibrator_timer_init(void)
 {
 	int ret;
+	int pwm_duty;
+
+	/*
+	 * Formula for matching the user space force (-127 to +127)
+	 * to Duty cycle.
+	 * Duty cycle will vary from 0 to 45('0' means 0% duty cycle,
+	 * '45' means 100% duty cycle.
+	 * Also if user space force equals to -127 then duty
+	 * cycle will be 0 (0%), if force equals to 0 duty cycle
+	 * will be 22.5(50%), if +127 then duty cycle will
+	 * be 45(100%)
+	 */
+
+	pwm_duty = ((pwmval + 128) * (PWM_DUTY_MAX >> 1)/128);
 
 	ret = omap_dm_timer_set_source(vibdata.gptimer,
 		OMAP_TIMER_SRC_SYS_CLK);
@@ -73,7 +133,7 @@ static int vibrator_timer_init(void)
 		return ret;
 
 	omap_dm_timer_set_load(vibdata.gptimer, 1, -PWM_DUTY_MAX);
-	omap_dm_timer_set_match(vibdata.gptimer, 1, -PWM_DUTY_MAX+10);
+	omap_dm_timer_set_match(vibdata.gptimer, 1, -pwm_duty);
 	omap_dm_timer_set_pwm(vibdata.gptimer, 0, 1,
 		OMAP_TIMER_TRIGGER_OVERFLOW_AND_COMPARE);
 	omap_dm_timer_enable(vibdata.gptimer);
@@ -86,10 +146,24 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 {
 	mutex_lock(&vibdata.lock);
 
+	/* make sure pwmval is between 0 and 127 */
+	if( pwmval > 127 ) {
+	    pwmval = 127;
+	} else if ( pwmval < 0 ) {
+	    pwmval = 0;
+	}
+
+	/* set the current pwmval */
+	if (pwmval != oldpwmval) {
+	    vibrator_timer_init();
+	    oldpwmval = pwmval;
+	}
+
 	/* cancel previous timer and set GPIO according to value */
 	hrtimer_cancel(&vibdata.timer);
 
 	if (value) {
+		pr_info("vibrator: value=%d, pwmval=%lu\n", value, pwmval);
 		wake_lock(&vibdata.wklock);
 		vibrator_timer_init();
 		gpio_set_value(vibdata.gpio_en, 1);
@@ -145,6 +219,8 @@ static int __init vibrator_init(void)
 
 	wake_lock_init(&vibdata.wklock, WAKE_LOCK_SUSPEND, "vibrator");
 	mutex_init(&vibdata.lock);
+
+	tuna_create_vibrator_sysfs();
 
 	ret = timed_output_dev_register(&to_dev);
 	if (ret < 0)
