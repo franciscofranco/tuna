@@ -66,7 +66,7 @@ static const int queue_quantum[] = {
 	4,	/* ROWQ_PRIO_REG_SWRITE */
 	4,	/* ROWQ_PRIO_REG_WRITE */
 	3,	/* ROWQ_PRIO_LOW_READ */
-	12	/* ROWQ_PRIO_LOW_SWRITE */
+	2	/* ROWQ_PRIO_LOW_SWRITE */
 };
 
 /* Default values for idling on read queues */
