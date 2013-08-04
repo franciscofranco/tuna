@@ -84,3 +84,5 @@ build.sh
 flash.sh
 mkboot/
 zip/
+arch/arm/boot/compressed/ashldi3.S
+arch/arm/boot/compressed/piggy.xzkern
