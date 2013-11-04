@@ -21,7 +21,7 @@
  */
 /* max queue in one round of service */
 static const int cfq_quantum = 4;
-static const int cfq_fifo_expire[2] = { 42, 11};
+static const int cfq_fifo_expire[2] = { 43, 11 };
 /* maximum backwards seek, in KiB */
 static const int cfq_back_max = 12582912;
 /* penalty of a backwards seek */
