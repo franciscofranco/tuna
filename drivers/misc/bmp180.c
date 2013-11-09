@@ -88,6 +88,8 @@
 #define PRESSURE_MIN		95000
 #define PRESSURE_FUZZ		5
 #define PRESSURE_FLAT		5
+#define TEMP_MAX			900
+#define TEMP_MIN			-900
 
 struct bmp180_eeprom_data {
 	s16 AC1, AC2, AC3;
@@ -304,6 +306,9 @@ static int bmp180_input_init(struct bmp180_data *barom)
 				PRESSURE_MIN, PRESSURE_MAX,
 				PRESSURE_FUZZ, PRESSURE_FLAT);
 
+	input_set_capability(barom->input_dev, EV_ABS, ABS_MISC);
+	input_set_abs_params(barom->input_dev, ABS_MISC
+				TEMP_MIN, TEMP_MAX, 0, 0);
 	pr_debug("%s: registering barometer input device\n", __func__);
 
 	err = input_register_device(barom->input_dev);
