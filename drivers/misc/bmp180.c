@@ -232,6 +232,7 @@ static void bmp180_get_pressure_data(struct work_struct *work)
 	long p;
 	int pressure;
 	int err;
+	int temperature;
 
 	struct bmp180_data *barom =
 	    container_of(work, struct bmp180_data, work_pressure);
@@ -251,7 +252,7 @@ static void bmp180_get_pressure_data(struct work_struct *work)
 	x2 = (barom->bmp180_eeprom_vals.MC << 11) /
 	    (x1 + barom->bmp180_eeprom_vals.MD);
 	b5 = x1 + x2;
-
+	temperature = (x1+x2+8) >> 4;
 	b6 = (b5 - 4000);
 	x1 = (barom->bmp180_eeprom_vals.B2 * ((b6 * b6) >> 12)) >> 11;
 	x2 = (barom->bmp180_eeprom_vals.AC2 * b6) >> 11;
@@ -278,6 +279,7 @@ static void bmp180_get_pressure_data(struct work_struct *work)
 		__func__, pressure);
 
 	input_report_abs(barom->input_dev, ABS_PRESSURE, pressure);
+	input_report_abs(barom->input_dev, ABS_MISC, temperature);
 	input_sync(barom->input_dev);
 
 	return;
