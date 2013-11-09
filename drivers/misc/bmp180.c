@@ -307,7 +307,7 @@ static int bmp180_input_init(struct bmp180_data *barom)
 				PRESSURE_FUZZ, PRESSURE_FLAT);
 
 	input_set_capability(barom->input_dev, EV_ABS, ABS_MISC);
-	input_set_abs_params(barom->input_dev, ABS_MISC
+	input_set_abs_params(barom->input_dev, ABS_MISC,
 				TEMP_MIN, TEMP_MAX, 0, 0);
 	pr_debug("%s: registering barometer input device\n", __func__);
 
