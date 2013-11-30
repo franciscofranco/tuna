@@ -401,7 +401,7 @@ config FORCE_FAST_CHARGE
 
 config TUNA_ASRAM
 	bool "Additional Safe RAM of ~50 MB"
-	default n
+	default y
 	help
 	  If enabled, reclaims 50 MB from the reserved RAM. Reclaming 
 	  max 50 MB is safe and makes 1080p camera
