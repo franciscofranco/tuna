@@ -29,7 +29,7 @@
 #include "control.h"
 #include "mux.h"
 
-#define TUNA_FB_RAM_SIZE		SZ_16M /* ~1280*720*4 * 2 */
+#define TUNA_FB_RAM_SIZE		SZ_1M * 11 /* ~1280*720*4 * 2 */
 
 #define TUNA_GPIO_MLCD_RST		23
 
