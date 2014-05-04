@@ -16,8 +16,8 @@
 #include "board-tuna.h"
 
 const struct lpddr2_timings lpddr2_samsung_timings_400_mhz = {
-	.max_freq	= 400000000,
-	.RL		= 5,
+	.max_freq	= 533000000,
+	.RL			= 7,
 	.tRPab		= 14,
 	.tRCD		= 14,
 	.tWR		= 10,

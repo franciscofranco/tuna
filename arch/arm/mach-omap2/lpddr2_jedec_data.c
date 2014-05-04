@@ -39,8 +39,8 @@ const struct lpddr2_addressing lpddr2_jedec_addressing_table[] = {
  * timings are not available from the device data sheet.
  */
 const struct lpddr2_timings lpddr2_jedec_timings_400_mhz = {
-	.max_freq	= 400000000,
-	.RL		= 6,
+	.max_freq	= 533000000,
+	.RL			= 6,
 	.tRPab		= 21,
 	.tRCD		= 18,
 	.tWR		= 15,
