@@ -11,8 +11,6 @@
  * GNU General Public License for more details.
  */
 
-#define pr_fmt(fmt) "cpu-boost: " fmt
-
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/notifier.h>
@@ -55,7 +53,7 @@ static void boost_input_event(struct input_handle *handle,
 
 static void boost_input_open(struct work_struct *w)
 {
-	struct touchboost_inputopen *io = 
+	struct touchboost_inputopen *io =
 		container_of(w, struct touchboost_inputopen, inputopen_work);
 
 	int error;
