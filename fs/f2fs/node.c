@@ -153,6 +153,18 @@ bool fsync_mark_done(struct f2fs_sb_info *sbi, nid_t nid)
 	return fsync_done;
 }
 
+void fsync_mark_clear(struct f2fs_sb_info *sbi, nid_t nid)
+{
+	struct f2fs_nm_info *nm_i = NM_I(sbi);
+	struct nat_entry *e;
+
+	write_lock(&nm_i->nat_tree_lock);
+	e = __lookup_nat_cache(nm_i, nid);
+	if (e)
+		e->fsync_done = false;
+	write_unlock(&nm_i->nat_tree_lock);
+}
+
 static struct nat_entry *grab_nat_entry(struct f2fs_nm_info *nm_i, nid_t nid)
 {
 	struct nat_entry *new;
@@ -970,7 +982,6 @@ repeat:
 		goto repeat;
 	}
 got_it:
-	mark_page_accessed(page);
 	return page;
 }
 
@@ -1025,7 +1036,6 @@ page_hit:
 		f2fs_put_page(page, 1);
 		return ERR_PTR(-EIO);
 	}
-	mark_page_accessed(page);
 	return page;
 }
 
@@ -1658,35 +1668,29 @@ int recover_inode_page(struct f2fs_sb_info *sbi, struct page *page)
 
 /*
  * ra_sum_pages() merge contiguous pages into one bio and submit.
- * these pre-readed pages are linked in pages list.
+ * these pre-readed pages are alloced in bd_inode's mapping tree.
  */
-static int ra_sum_pages(struct f2fs_sb_info *sbi, struct list_head *pages,
+static int ra_sum_pages(struct f2fs_sb_info *sbi, struct page **pages,
 				int start, int nrpages)
 {
-	struct page *page;
-	int page_idx = start;
+	struct inode *inode = sbi->sb->s_bdev->bd_inode;
+	struct address_space *mapping = inode->i_mapping;
+	int i, page_idx = start;
 	struct f2fs_io_info fio = {
 		.type = META,
 		.rw = READ_SYNC | REQ_META | REQ_PRIO
 	};
 
-	for (; page_idx < start + nrpages; page_idx++) {
-		/* alloc temporal page for read node summary info*/
-		page = alloc_page(GFP_F2FS_ZERO);
-		if (!page)
+	for (i = 0; page_idx < start + nrpages; page_idx++, i++) {
+		/* alloc page in bd_inode for reading node summary info */
+		pages[i] = grab_cache_page(mapping, page_idx);
+		if (!pages[i])
 			break;
-
-		lock_page(page);
-		page->index = page_idx;
-		list_add_tail(&page->lru, pages);
+		f2fs_submit_page_mbio(sbi, pages[i], page_idx, &fio);
 	}
 
-	list_for_each_entry(page, pages, lru)
-		f2fs_submit_page_mbio(sbi, page, page->index, &fio);
-
 	f2fs_submit_merged_bio(sbi, META, READ);
-
-	return page_idx - start;
+	return i;
 }
 
 int restore_node_summary(struct f2fs_sb_info *sbi,
@@ -1694,11 +1698,11 @@ int restore_node_summary(struct f2fs_sb_info *sbi,
 {
 	struct f2fs_node *rn;
 	struct f2fs_summary *sum_entry;
-	struct page *page, *tmp;
+	struct inode *inode = sbi->sb->s_bdev->bd_inode;
 	block_t addr;
 	int bio_blocks = MAX_BIO_BLOCKS(max_hw_blocks(sbi));
-	int i, last_offset, nrpages, err = 0;
-	LIST_HEAD(page_list);
+	struct page *pages[bio_blocks];
+	int i, idx, last_offset, nrpages, err = 0;
 
 	/* scan the node segment */
 	last_offset = sbi->blocks_per_seg;
@@ -1709,29 +1713,31 @@ int restore_node_summary(struct f2fs_sb_info *sbi,
 		nrpages = min(last_offset - i, bio_blocks);
 
 		/* read ahead node pages */
-		nrpages = ra_sum_pages(sbi, &page_list, addr, nrpages);
+		nrpages = ra_sum_pages(sbi, pages, addr, nrpages);
 		if (!nrpages)
 			return -ENOMEM;
 
-		list_for_each_entry_safe(page, tmp, &page_list, lru) {
+		for (idx = 0; idx < nrpages; idx++) {
 			if (err)
 				goto skip;
 
-			lock_page(page);
-			if (unlikely(!PageUptodate(page))) {
+			lock_page(pages[idx]);
+			if (unlikely(!PageUptodate(pages[idx]))) {
 				err = -EIO;
 			} else {
-				rn = F2FS_NODE(page);
+				rn = F2FS_NODE(pages[idx]);
 				sum_entry->nid = rn->footer.nid;
 				sum_entry->version = 0;
 				sum_entry->ofs_in_node = 0;
 				sum_entry++;
 			}
-			unlock_page(page);
+			unlock_page(pages[idx]);
 skip:
-			list_del(&page->lru);
-			__free_pages(page, 0);
+			page_cache_release(pages[idx]);
 		}
+
+		invalidate_mapping_pages(inode->i_mapping, addr,
+							addr + nrpages);
 	}
 	return err;
 }
