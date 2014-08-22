@@ -1,0 +1,21 @@
+show_progress(1.34, 2);
+ui_print("");
+ui_print("Installing a virus...");
+ui_print("23%...");
+ui_print("50%...");
+ui_print("77%...  There's no escape now,");
+ui_print("100%... allyourbasearebelongtous!");
+ui_print("");
+mount("ext4", "EMMC", "/dev/block/platform/omap/omap_hsmmc.0/by-name/system", "/system");
+assert(getprop("ro.product.device") == "maguro" || getprop("ro.build.product") == "maguro" ||
+       getprop("ro.product.device") == "toro" || getprop("ro.build.product") == "toro" ||
+       getprop("ro.product.device") == "toroplus" || getprop("ro.build.product") == "toroplus");
+run_program("/sbin/sh", "-c", "mkdir /system/etc/init.d");
+set_perm_recursive(0, 0, 0755, 0755, "/system/etc/init.d");
+unmount("/system");
+assert(package_extract_file("boot.img", "/dev/block/platform/omap/omap_hsmmc.0/by-name/boot"));
+ui_print("Had you freaked out hein?!");
+ui_print("");
+ui_print("Thank you for installing franco.Kernel,");
+ui_print("enjoy it :)");
+
