@@ -46,7 +46,7 @@ static void enable_foz(void)
 	u32 val;
 	asm volatile(
 	"mrc   p15, 0, %0, c1, c0, 1\n"
-	"orr   %0, %0, #(1 << 3)\n"
+	"orr   %0, %0, #(1 << 5)\n"
 	"mcr   p15, 0, %0, c1, c0, 1"
 	: "=r" (val));
 }
