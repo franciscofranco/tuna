@@ -31,7 +31,7 @@
 #include "clockdomain.h"
 
 #ifdef CONFIG_CACHE_L2X0
-#define L2X0_POR_OFFSET_VALUE	0x5
+#define L2X0_POR_OFFSET_VALUE	0x4
 #define L2X0_POR_OFFSET_MASK	0x1f
 static void __iomem *l2cache_base;
 #endif
@@ -194,6 +194,7 @@ static int __init omap_l2_cache_init(void)
 	 * the performance.
 	 */
 	aux_ctrl |= ((0x3 << L2X0_AUX_CTRL_WAY_SIZE_SHIFT) |
+		(1 << 5) |
 		(1 << L2X0_AUX_CTRL_SHARE_OVERRIDE_SHIFT) |
 		(1 << L2X0_AUX_CTRL_EARLY_BRESP_SHIFT));
 
@@ -210,9 +211,11 @@ static int __init omap_l2_cache_init(void)
 	 * It may cause single cache line memory corruption, leave it disabled
 	 * on all devices
 	 */
-	por_ctrl &= ~(1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT);
+	por_ctrl &= ~(1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT) |
+		     (1 << L2X0_PREFETCH_DLF_ON_WRAP_READ_SHIFT);
 	if (!mpu_prefetch_disable_errata) {
 		por_ctrl &= ~L2X0_POR_OFFSET_MASK;
+		por_ctrl &= ~0x1f;
 		por_ctrl |= L2X0_POR_OFFSET_VALUE;
 	}
 

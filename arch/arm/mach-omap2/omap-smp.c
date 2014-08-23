@@ -41,6 +41,16 @@ void __iomem *omap4_get_scu_base(void)
 	return scu_base;
 }
 
+static void enable_foz(void)
+{
+	u32 val;
+	asm volatile(
+	"mrc   p15, 0, %0, c1, c0, 1\n"
+	"orr   %0, %0, #(1 << 3)\n"
+	"mcr   p15, 0, %0, c1, c0, 1"
+	: "=r" (val));
+}
+
 void __cpuinit platform_secondary_init(unsigned int cpu)
 {
 	/* Enable NS access to SMP bit for this CPU on HS devices */
@@ -55,6 +65,15 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 	 * for us: do so
 	 */
 	gic_secondary_init(0);
+
+	/*
+	* Enable write full line for zeros mode
+	*/
+	if (cpu_is_omap44xx()) {
+		enable_foz();
+		smp_call_function((void (*)(void *))enable_foz, NULL, 0);
+		pr_info("Write full line for zeros mode: enabled");
+	}
 
 	/*
 	 * Synchronise with the boot thread.
