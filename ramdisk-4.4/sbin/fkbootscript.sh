@@ -5,29 +5,36 @@
 # custom busybox installation shortcut
 bb=/sbin/bb/busybox;
 
+# ensure SuperSU daemonsu/Superuser su_daemon service is running
+if [ -e /system/xbin/daemonsu ]; then
+  /system/xbin/daemonsu --auto-daemon&
+elif [ ! -e /init.superuser.rc ]; then
+  /system/xbin/su --daemon&
+fi;
+
 # disable sysctl.conf to prevent ROM interference with tunables
 $bb mount -o rw,remount /system;
-$bb [ -e /system/etc/sysctl.conf ] && $bb mv /system/etc/sysctl.conf /system/etc/sysctl.conf.fkbak;
+$bb [ -e /system/etc/sysctl.conf ] && $bb mv -f /system/etc/sysctl.conf /system/etc/sysctl.conf.fkbak;
 
 # disable the PowerHAL since there is now a kernel-side touch boost implemented
 $bb [ -e /system/lib/hw/power.tuna.so.fkbak ] || $bb cp /system/lib/hw/power.tuna.so /system/lib/hw/power.tuna.so.fkbak;
-$bb [ -e /system/lib/hw/power.tuna.so ] && $bb rm /system/lib/hw/power.tuna.so;
+$bb [ -e /system/lib/hw/power.tuna.so ] && $bb rm -f /system/lib/hw/power.tuna.so;
 
 # create and set permissions for /system/etc/init.d if it doesn't already exist
 if [ ! -e /system/etc/init.d ]; then
-  $bb mkdir /system/etc/init.d;
-  $bb chown -R root.root /system/etc/init.d;
-  $bb chmod -R 755 /system/etc/init.d;
+  mkdir /system/etc/init.d;
+  chown -R root.root /system/etc/init.d;
+  chmod -R 755 /system/etc/init.d;
 fi;
 $bb mount -o ro,remount /system;
 
 # disable debugging
-echo "0" > /sys/module/wakelock/parameters/debug_mask;
-echo "0" > /sys/module/userwakelock/parameters/debug_mask;
-echo "0" > /sys/module/earlysuspend/parameters/debug_mask;
-echo "0" > /sys/module/alarm/parameters/debug_mask;
-echo "0" > /sys/module/alarm_dev/parameters/debug_mask;
-echo "0" > /sys/module/binder/parameters/debug_mask;
+echo 0 > /sys/module/wakelock/parameters/debug_mask;
+echo 0 > /sys/module/userwakelock/parameters/debug_mask;
+echo 0 > /sys/module/earlysuspend/parameters/debug_mask;
+echo 0 > /sys/module/alarm/parameters/debug_mask;
+echo 0 > /sys/module/alarm_dev/parameters/debug_mask;
+echo 0 > /sys/module/binder/parameters/debug_mask;
 
 # initialize timer_slack
 echo 100000000 > /dev/cpuctl/apps/bg_non_interactive/timer_slack.min_slack_ns;
@@ -52,6 +59,13 @@ for i in /sys/block/*/queue; do
   echo 0 > $i/rotational;
 done;
 
+# adjust f2fs partition RAM thresholds to favor userdata (thanks boype)
+if [ -e /sys/fs/f2fs ]; then
+  echo 5 > /sys/fs/f2fs/mmcblk0p10/ram_thresh;
+  echo 5 > /sys/fs/f2fs/mmcblk0p11/ram_thresh;
+  echo 25 > /sys/fs/f2fs/mmcblk0p12/ram_thresh;
+fi;
+
 # remount sysfs+sdcard with noatime,nodiratime since that's all they accept
 $bb mount -o remount,nosuid,nodev,noatime,nodiratime -t auto /;
 $bb mount -o remount,nosuid,nodev,noatime,nodiratime -t auto /proc;
@@ -63,13 +77,19 @@ for i in /storage/emulated/*; do
   $bb mount -o remount,nosuid,nodev,noatime,nodiratime -t auto $i/Android/obb;
 done;
 
+# workaround for hung boots with nodiratime+noatime, barrier=0+data=writeback or noauto_da_alloc on ext4, and
+# with inline_data, flush_merge, or active_logs=2 on f2fs for userdata via the fstab on older init binaries
+case `getprop ro.fs.data` in
+  ext4) $bb mount -o remount,nosuid,nodev,noatime,nodiratime,barrier=0,noauto_da_alloc -t auto /data;;
+  f2fs) $bb mount -o remount,nosuid,nodev,noatime,nodiratime,inline_data,flush_merge,active_logs=2 -t auto /data;;
+esac;
+
 # wait for systemui and increase its priority
 while sleep 1; do
-  if [ `$bb pidof com.android.systemui` ]; then
+  if [ "$($bb pidof com.android.systemui)" ]; then
     systemui=`$bb pidof com.android.systemui`;
+    echo -17 > /proc/$systemui/oom_adj;
     $bb renice -18 $systemui;
-    $bb echo -17 > /proc/$systemui/oom_adj;
-    $bb chmod 100 /proc/$systemui/oom_adj;
     exit;
   fi;
 done&
@@ -78,11 +98,11 @@ done&
 list="com.android.launcher com.google.android.googlequicksearchbox org.adw.launcher org.adwfreak.launcher net.alamoapps.launcher com.anddoes.launcher com.android.lmt com.chrislacy.actionlauncher.pro com.cyanogenmod.trebuchet com.gau.go.launcherex com.gtp.nextlauncher com.miui.mihome2 com.mobint.hololauncher com.mobint.hololauncher.hd com.mycolorscreen.themer com.qihoo360.launcher com.teslacoilsw.launcher com.tsf.shell org.zeam";
 while sleep 60; do
   for class in $list; do
-    if [ `$bb pgrep $class | head -n 1` ]; then
-      launcher=`$bb pgrep $class`;
-      $bb echo -17 > /proc/$launcher/oom_adj;
-      $bb chmod 100 /proc/$launcher/oom_adj;
-      $bb renice -18 $launcher;
+    if [ "$($bb pgrep $class)" ]; then
+      for launcher in `$bb pgrep $class`; do
+        echo -17 > /proc/$launcher/oom_adj;
+        $bb renice -18 $launcher;
+      done;
     fi;
   done;
   exit;

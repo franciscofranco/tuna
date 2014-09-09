@@ -1,0 +1,19 @@
+# Android fstab file.
+#<src>                                                  <mnt_point>         <type>    <mnt_flags and options>                               <fs_mgr_flags>
+# The filesystem that contains the filesystem checker binary (typically /system) cannot
+# specify MF_CHECK, and must come before any filesystems that do specify MF_CHECK
+
+
+/dev/block/platform/omap/omap_hsmmc.0/by-name/system    /system             f2fs      nodev,noatime,nodiratime,background_gc=on,discard,inline_xattr,inline_data,flush_merge,active_logs=2    wait
+/dev/block/platform/omap/omap_hsmmc.0/by-name/efs       /factory            ext4      ro                                                    wait
+/dev/block/platform/omap/omap_hsmmc.0/by-name/cache     /cache              f2fs      nosuid,nodev,noatime,nodiratime,background_gc=on,discard,inline_xattr,inline_data,flush_merge,active_logs=2    wait,check
+/dev/block/platform/omap/omap_hsmmc.0/by-name/userdata  /data               f2fs      nosuid,nodev,noatime,nodiratime,background_gc=on,discard,inline_xattr    wait,nonremovable,check,encryptable=/dev/block/platform/omap/omap_hsmmc.0/by-name/metadata
+/dev/block/platform/omap/omap_hsmmc.0/by-name/misc      /misc               emmc      defaults                                              defaults
+/dev/block/platform/omap/omap_hsmmc.0/by-name/boot      /boot               emmc      defaults                                              defaults
+/dev/block/platform/omap/omap_hsmmc.0/by-name/recovery  /recovery           emmc      defaults                                              defaults
+/dev/block/platform/omap/omap_hsmmc.0/by-name/sbl       /sbl                emmc      defaults                                              defaults
+/dev/block/platform/omap/omap_hsmmc.0/by-name/xloader   /xloader            emmc      defaults                                              defaults
+/dev/block/platform/omap/omap_hsmmc.0/by-name/radio     /radio              emmc      defaults                                              defaults
+
+# USB storage device
+/devices/platform/omap/musb-omap2430/musb-hdrc          /storage/usbdisk    vfat      defaults                                              voldmanaged=usbdisk:auto
