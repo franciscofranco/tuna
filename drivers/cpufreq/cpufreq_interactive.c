@@ -116,11 +116,6 @@ int input_boost_freq = DEFAULT_INPUT_BOOST_FREQ;
 #define DOWN_LOW_LOAD_THRESHOLD 5
 
 /*
- * Default thread migration boost cpufreq
- */
-#define CPU_SYNC_FREQ 1036800
-
-/*
  * Max additional time to wait in idle, beyond timer_rate, at speeds above
  * minimum before wakeup to reduce speed, or -1 if unnecessary.
  */
