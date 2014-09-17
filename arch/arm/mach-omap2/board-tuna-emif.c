@@ -16,48 +16,48 @@
 #include "board-tuna.h"
 
 const struct lpddr2_timings lpddr2_samsung_timings_400_mhz = {
-	.max_freq	= 466666666,
-	.RL		= 1,
-	.tRPab		= 11,   // limit
-	.tRCD		= 11,   // limit
-	.tWR		= 1,
-	.tRASmin	= 11,   // limit
-	.tRRD		= 5,    // doesn't seem to change performance
-	.tWTRx2		= 6,    // doesn't seem to change performance
-	.tXSR		= 121,  // tRCD*tRASmin 
-	.tXPx2		= 12,
-	.tRFCab		= 80,
-	.tRTPx2		= 8,
+	.max_freq	= 400000000,
+	.RL		= 5,
+	.tRPab		= 14,
+	.tRCD		= 14,
+	.tWR		= 10,
+	.tRASmin	= 30,
+	.tRRD		= 10,
+	.tWTRx2		= 15,
+	.tXSR		= 140,
+	.tXPx2		= 15,
+	.tRFCab		= 130,
+	.tRTPx2		= 15,
 	.tCKE		= 3,
 	.tCKESR		= 15,
-	.tZQCS		= 70,
-	.tZQCL		= 340,
+	.tZQCS		= 90,
+	.tZQCL		= 360,
 	.tZQINIT	= 1000,
 	.tDQSCKMAXx2	= 11,
-	.tRASmax	= 50,
+	.tRASmax	= 70,
 	.tFAW		= 50,
 };
 
 const struct lpddr2_timings lpddr2_samsung_timings_200_mhz = {
 	.max_freq	= 200000000,
-	.RL		= 1,
-	.tRPab		= 11,   // limit
-	.tRCD		= 11,   // limit
-	.tWR		= 1,
-	.tRASmin	= 11,   // limit
-	.tRRD		= 5,    // doesn't seem to change performance
-	.tWTRx2		= 6,    // doesn't seem to change performance
-	.tXSR		= 121,  // tRCD*tRASmin 
-	.tXPx2		= 12,
-	.tRFCab		= 80,
-	.tRTPx2		= 8,
+	.RL		= 3,
+	.tRPab		= 14,
+	.tRCD		= 14,
+	.tWR		= 10,
+	.tRASmin	= 30,
+	.tRRD		= 10,
+	.tWTRx2		= 20,
+	.tXSR		= 140,
+	.tXPx2		= 15,
+	.tRFCab		= 130,
+	.tRTPx2		= 15,
 	.tCKE		= 3,
 	.tCKESR		= 15,
-	.tZQCS		= 70,
-	.tZQCL		= 340,
+	.tZQCS		= 90,
+	.tZQCL		= 360,
 	.tZQINIT	= 1000,
 	.tDQSCKMAXx2	= 11,
-	.tRASmax	= 50,
+	.tRASmax	= 70,
 	.tFAW		= 50,
 };
 
