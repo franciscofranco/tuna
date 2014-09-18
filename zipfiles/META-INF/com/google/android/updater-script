@@ -6,7 +6,7 @@ ui_print("50%...");
 ui_print("77%...  There's no escape now,");
 ui_print("100%... allyourbasearebelongtous!");
 ui_print(" ");
-run_program("/sbin/busybox, "mount", "/system");
+run_program("/sbin/busybox", "mount", "/system");
 assert(getprop("ro.product.device") == "maguro" || getprop("ro.build.product") == "maguro" ||
        getprop("ro.product.device") == "toro" || getprop("ro.build.product") == "toro" ||
        getprop("ro.product.device") == "toroplus" || getprop("ro.build.product") == "toroplus");
